@@ -13,7 +13,9 @@ import com.sedmelluq.discord.lavaplayer.track.AudioReference;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 import dev.lavalink.youtube.UrlTools.UrlInfo;
-import dev.lavalink.youtube.cipher.SignatureCipherManager;
+import dev.lavalink.youtube.cipher.LocalSignatureCipherManager;
+import dev.lavalink.youtube.cipher.RemoteCipherManager;
+import dev.lavalink.youtube.cipher.CipherManager;
 import dev.lavalink.youtube.clients.*;
 import dev.lavalink.youtube.clients.skeleton.Client;
 import dev.lavalink.youtube.http.YoutubeAccessTokenTracker;
@@ -68,45 +70,42 @@ public class YoutubeAudioSourceManager implements AudioSourceManager {
 
     protected YoutubeHttpContextFilter contextFilter;
     protected YoutubeOauth2Handler oauth2Handler;
-    protected SignatureCipherManager cipherManager;
+    protected CipherManager cipherManager;
 
-    private String cipherProxyUrl;
-    private String cipherProxyPass;
+    public YoutubeAudioSourceManager() {
+        this(true);
+    }
 
-//    public YoutubeAudioSourceManager() {
-//        this(true);
-//    }
+    public YoutubeAudioSourceManager(boolean allowSearch) {
+        this(allowSearch, true, true);
+    }
 
-//    public YoutubeAudioSourceManager(boolean allowSearch) {
-//        this(allowSearch, true, true);
-//    }
+    public YoutubeAudioSourceManager(boolean allowSearch, boolean allowDirectVideoIds, boolean allowDirectPlaylistIds) {
+        // query order: music -> web -> androidtestsuite -> tvhtml5embedded
+        this(allowSearch, allowDirectVideoIds, allowDirectPlaylistIds, null, (String) null, new Music(), new AndroidVr(), new Web(), new WebEmbedded());
+    }
 
-//    public YoutubeAudioSourceManager(boolean allowSearch, boolean allowDirectVideoIds, boolean allowDirectPlaylistIds) {
-//        // query order: music -> web -> androidtestsuite -> tvhtml5embedded
-//        this(allowSearch, allowDirectVideoIds, allowDirectPlaylistIds, new Music(), new AndroidVr(), new Web(), new WebEmbedded());
-//    }
+    /**
+     * Construct an instance of YoutubeAudioSourceManager with default settings
+     * and the given clients.
+     * @param clients The clients to use for track loading. They will be queried in
+     *                the order they are provided.
+     */
+    public YoutubeAudioSourceManager(@NotNull Client... clients) {
+        this(true, true, true, null, null, clients);
+    }
 
-//    /**
-//     * Construct an instance of YoutubeAudioSourceManager with default settings
-//     * and the given clients.
-//     * @param clients The clients to use for track loading. They will be queried in
-//     *                the order they are provided.
-//     */
-//    public YoutubeAudioSourceManager(@NotNull Client... clients) {
-//        this(true, true, true, clients);
-//    }
-
-//    /**
-//     * Construct an instance of YoutubeAudioSourceManager with the given settings
-//     * and clients.
-//     * @param allowSearch Whether to allow searching for tracks. If disabled, the
-//     *                    "ytsearch:" and "ytmsearch:" prefixes will return nothing.
-//     * @param clients The clients to use for track loading. They will be queried in
-//     *                the order they are provided.
-//     */
-//    public YoutubeAudioSourceManager(boolean allowSearch, @NotNull Client... clients) {
-//        this(allowSearch, true, true, clients);
-//    }
+    /**
+     * Construct an instance of YoutubeAudioSourceManager with the given settings
+     * and clients.
+     * @param allowSearch Whether to allow searching for tracks. If disabled, the
+     *                    "ytsearch:" and "ytmsearch:" prefixes will return nothing.
+     * @param clients The clients to use for track loading. They will be queried in
+     *                the order they are provided.
+     */
+    public YoutubeAudioSourceManager(boolean allowSearch, @NotNull Client... clients) {
+        this(allowSearch, true, true, clients);
+    }
 
     /**
      * Construct an instance of YoutubeAudioSourceManager with the given settings
@@ -123,16 +122,39 @@ public class YoutubeAudioSourceManager implements AudioSourceManager {
     public YoutubeAudioSourceManager(boolean allowSearch,
                                      boolean allowDirectVideoIds,
                                      boolean allowDirectPlaylistIds,
-                                     String cipherProxyUrl,
-                                     String cipherProxyPass,
+                                     @NotNull Client... clients) {
+        this(allowSearch, allowDirectVideoIds, allowDirectPlaylistIds, null, null, clients);
+    }
+
+    /**
+     * Construct an instance of YoutubeAudioSourceManager with the given settings
+     * and clients.
+     * @param allowSearch Whether to allow searching for tracks. If disabled, the
+     *                    "ytsearch:" and "ytmsearch:" prefixes will return nothing.
+     * @param allowDirectVideoIds Whether this source will attempt to load video identifiers
+     *                            if they're provided without a complete URL (i.e. "dQw4w9WgXcQ")
+     * @param allowDirectPlaylistIds Whether this source will attempt to load playlist identifiers
+     *                               if they're provided without a complete URL.
+     * @param remoteCipherUrl The URL of a remote server to use for fetching and deciphering signatures.
+     *                       If null, signatures will be deciphered locally.
+     * @param remoteCipherPass The password to use for the remote server, if applicable.
+     *                        If null, no password will be sent to the proxy.
+     * @param clients The clients to use for track loading. They will be queried in
+     *                the order they are provided.
+     */
+    public YoutubeAudioSourceManager(boolean allowSearch,
+                                     boolean allowDirectVideoIds,
+                                     boolean allowDirectPlaylistIds,
+                                     @Nullable String remoteCipherUrl,
+                                     @Nullable String remoteCipherPass,
                                      @NotNull Client... clients) {
         this(
             new YoutubeSourceOptions()
                 .setAllowSearch(allowSearch)
                 .setAllowDirectVideoIds(allowDirectVideoIds)
                 .setAllowDirectPlaylistIds(allowDirectPlaylistIds)
-                .setCipherProxyUrl(cipherProxyUrl)
-                .setCipherProxyPass(cipherProxyPass),
+                .setRemoteCipherUrl(remoteCipherUrl)
+                .setRemoteCipherPass(remoteCipherPass),
             clients
         );
     }
@@ -144,7 +166,11 @@ public class YoutubeAudioSourceManager implements AudioSourceManager {
         this.allowDirectVideoIds = options.isAllowDirectVideoIds();
         this.allowDirectPlaylistIds = options.isAllowDirectPlaylistIds();
         this.clients = clients;
-        this.cipherManager = new SignatureCipherManager(options.getCipherProxyUrl(), options.getCipherProxyPass());
+        if (options.getRemoteCipherUrl() != null && !options.getRemoteCipherUrl().isEmpty()) {
+            this.cipherManager = new RemoteCipherManager(options.getRemoteCipherUrl(), options.getRemoteCipherPass());
+        } else {
+            this.cipherManager = new LocalSignatureCipherManager();
+        }
         this.oauth2Handler = new YoutubeOauth2Handler(httpInterfaceManager);
 
         contextFilter = new YoutubeHttpContextFilter();
@@ -370,7 +396,7 @@ public class YoutubeAudioSourceManager implements AudioSourceManager {
     }
 
     @NotNull
-    public SignatureCipherManager getCipherManager() {
+    public CipherManager getCipherManager() {
         return cipherManager;
     }
 
@@ -444,19 +470,28 @@ public class YoutubeAudioSourceManager implements AudioSourceManager {
         AudioItem route(@NotNull Client client) throws CannotBeLoaded, IOException;
     }
 
-    public String getCipherProxyUrl() {
-        return cipherProxyUrl;
+    @Nullable
+    public String getRemoteCipherUrl() {
+        if (cipherManager instanceof RemoteCipherManager) {
+            return ((RemoteCipherManager) cipherManager).getRemoteUrl();
+        }
+        return null;
     }
 
-    public void setCipherProxyUrl(String cipherProxyUrl) {
-        this.cipherProxyUrl = cipherProxyUrl;
+    @Nullable
+    public String getRemoteCipherPass() {
+        if (cipherManager instanceof RemoteCipherManager) {
+            return ((RemoteCipherManager) cipherManager).getRemotePass();
+        }
+        return null;
     }
 
-    public String getCipherProxyPass() {
-        return cipherProxyPass;
+    public void setRemoteCipherManagerUrlPass(String cipherProxyUrl, @Nullable String cipherProxyPass) {
+        this.cipherManager = new RemoteCipherManager(cipherProxyUrl, cipherProxyPass);
     }
 
-    public void setCipherProxyPass(String cipherProxyPass) {
-        this.cipherProxyPass = cipherProxyPass;
+    public void setLocalSignatureCipherManager() {
+        this.cipherManager = new LocalSignatureCipherManager();
     }
+
 }
