@@ -323,8 +323,9 @@ YoutubeAudioSourceManager sourceManager = new YoutubeAudioSourceManager(options,
 ```yaml
 plugins:
   youtube:
-    remoteCipherUrl: "http://localhost:8001" # The base URL of your remote cipher server.
-    remoteCipherPass: "your_secret_password" # The password to authenticate with your remote cipher server.
+    remoteCipher:
+      url: "http://localhost:8001" # The base URL of your remote cipher server.
+      password: "your_secret_password" # The password to authenticate with your remote cipher server.
 ```
 
 ## REST routes (`plugin` only)

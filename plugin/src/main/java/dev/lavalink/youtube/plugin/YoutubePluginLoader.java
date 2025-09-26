@@ -153,9 +153,10 @@ public class YoutubePluginLoader implements AudioPlayerManagerConfiguration {
 
         if (clientProvider == null) {
             log.warn("ClientProvider instance is missing. The YouTube source will be initialised with default clients.");
-            source = new YoutubeAudioSourceManager(allowSearch, allowDirectVideoIds, allowDirectPlaylistIds, Objects.requireNonNull(youtubeConfig).getRemoteCipherUrl(), youtubeConfig.getRemoteCipherPass());
+            source = new YoutubeAudioSourceManager(allowSearch, allowDirectVideoIds, allowDirectPlaylistIds);
         } else {
             String[] clients;
+
 
             if (youtubeConfig == null || youtubeConfig.getClients() == null) {
                 log.warn("youtubeConfig missing or 'clients' was not specified, default values will be used.");
@@ -177,7 +178,7 @@ public class YoutubePluginLoader implements AudioPlayerManagerConfiguration {
                 }
             }
 
-            source = new YoutubeAudioSourceManager(allowSearch, allowDirectVideoIds, allowDirectPlaylistIds, Objects.requireNonNull(youtubeConfig).getRemoteCipherUrl(), youtubeConfig.getRemoteCipherPass(), clientProvider.getClients(clients, this::getOptionsForClient));
+            source = new YoutubeAudioSourceManager(allowSearch, allowDirectVideoIds, allowDirectPlaylistIds, clientProvider.getClients(clients, this::getOptionsForClient));
         }
 
         log.info("YouTube source initialised with clients: {} ", Arrays.stream(source.getClients()).map(Client::getIdentifier).collect(Collectors.joining(", ")));
@@ -198,8 +199,8 @@ public class YoutubePluginLoader implements AudioPlayerManagerConfiguration {
             rotator.setup();
         }
 
-        if (youtubeConfig.getRemoteCipherUrl() != null) {
-            source.setRemoteCipherManagerUrlPass(youtubeConfig.getRemoteCipherUrl(), youtubeConfig.getRemoteCipherPass());
+        if (youtubeConfig != null && youtubeConfig.getRemoteCipher() != null) {
+            source.setRemoteCipherManagerUrlPass(youtubeConfig.getRemoteCipher().getUrl(), youtubeConfig.getRemoteCipher().getPassword());
         }
 
         Integer playlistLoadLimit = serverConfig.getYoutubePlaylistLoadLimit();

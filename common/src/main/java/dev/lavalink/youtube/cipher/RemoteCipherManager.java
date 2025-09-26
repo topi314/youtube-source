@@ -9,6 +9,7 @@ import com.sedmelluq.discord.lavaplayer.tools.io.HttpInterface;
 import dev.lavalink.youtube.track.format.StreamFormat;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpRequest;
+import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -124,15 +125,7 @@ public class RemoteCipherManager implements CipherManager {
         synchronized (cipherLoadLock) {
             log.debug("Timestamp from script {}", sourceUrl);
 
-            try (CloseableHttpResponse response = httpInterface.execute(new HttpGet(CipherUtils.parseTokenScriptUrl(sourceUrl)))) {
-                int statusCode = response.getStatusLine().getStatusCode();
-
-                if (!HttpClientTools.isSuccessWithContent(statusCode)) {
-                    throw new IOException("Received non-success response code " + statusCode + " from script url " +
-                        sourceUrl + " ( " + CipherUtils.parseTokenScriptUrl(sourceUrl) + " )");
-                }
-                return getTimestampFromScript(httpInterface, sourceUrl);
-            }
+            return getTimestampFromScript(httpInterface, sourceUrl);
         }
     }
 
@@ -151,10 +144,8 @@ public class RemoteCipherManager implements CipherManager {
 
         String requestBody = JsonWriter.string()
             .object()
-            .value("player_url", "https://youtube.com" + playerScript)
-            .value("encrypted_signature", "")
+            .value("player_url", playerScript)
             .value("n_param", n)
-            .value("video_id", "test")
             .end()
             .done();
         request.setEntity(new StringEntity(requestBody, ContentType.APPLICATION_JSON));
@@ -166,7 +157,7 @@ public class RemoteCipherManager implements CipherManager {
             String responseBody = (entity != null) ? EntityUtils.toString(entity, StandardCharsets.UTF_8) : null;
 
             if (statusCode >= 200 && statusCode < 300) {
-                if (responseBody == null || responseBody.isEmpty()) {
+                if (DataFormatTools.isNullOrEmpty(responseBody)) {
                     throw new IOException("Received empty successful response from decryption proxy.");
                 }
 
@@ -189,11 +180,10 @@ public class RemoteCipherManager implements CipherManager {
 
         String requestBody = JsonWriter.string()
             .object()
-            .value("player_url", "https://youtube.com" + playerScript)
+            .value("player_url", playerScript)
             .value("encrypted_signature", sig)
             .value("n_param", nParam)
             .value("signature_key", sigKey)
-            .value("video_id", "test")
             .end()
             .done();
         request.setEntity(new StringEntity(requestBody, ContentType.APPLICATION_JSON));
@@ -204,8 +194,8 @@ public class RemoteCipherManager implements CipherManager {
             HttpEntity entity = response.getEntity();
             String responseBody = (entity != null) ? EntityUtils.toString(entity, StandardCharsets.UTF_8) : null;
 
-            if (statusCode >= 200 && statusCode < 300) {
-                if (responseBody == null || responseBody.isEmpty()) {
+            if (statusCode >= HttpStatus.SC_OK && statusCode < HttpStatus.SC_MULTIPLE_CHOICES) {
+                if (DataFormatTools.isNullOrEmpty(responseBody)) {
                     throw new IOException("Received empty successful response from decryption proxy.");
                 }
 
@@ -247,8 +237,7 @@ public class RemoteCipherManager implements CipherManager {
 
         String requestBody = JsonWriter.string()
             .object()
-            .value("player_url", "https://youtube.com" + playerScript)
-            .value("video_id", "test")
+            .value("player_url", playerScript)
             .end()
             .done();
         request.setEntity(new StringEntity(requestBody, ContentType.APPLICATION_JSON));
@@ -260,7 +249,7 @@ public class RemoteCipherManager implements CipherManager {
             String responseBody = (entity != null) ? EntityUtils.toString(entity, StandardCharsets.UTF_8) : null;
 
             if (statusCode >= 200 && statusCode < 300) {
-                if (responseBody == null || responseBody.isEmpty()) {
+                if (DataFormatTools.isNullOrEmpty(responseBody)) {
                     throw new IOException("Received empty successful response from decryption proxy.");
                 }
                 log.debug("Received response from proxy: {}", responseBody);

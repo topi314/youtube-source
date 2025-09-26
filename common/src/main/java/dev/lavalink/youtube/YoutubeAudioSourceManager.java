@@ -2,6 +2,7 @@ package dev.lavalink.youtube;
 
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.source.AudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.tools.DataFormatTools;
 import com.sedmelluq.discord.lavaplayer.tools.ExceptionTools;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException.Severity;
@@ -137,7 +138,7 @@ public class YoutubeAudioSourceManager implements AudioSourceManager {
      *                               if they're provided without a complete URL.
      * @param remoteCipherUrl The URL of a remote server to use for fetching and deciphering signatures.
      *                       If null, signatures will be deciphered locally.
-     * @param remoteCipherPass The password to use for the remote server, if applicable.
+     * @param remoteCipherPassword The password to use for the remote server, if applicable.
      *                        If null, no password will be sent to the proxy.
      * @param clients The clients to use for track loading. They will be queried in
      *                the order they are provided.
@@ -146,15 +147,14 @@ public class YoutubeAudioSourceManager implements AudioSourceManager {
                                      boolean allowDirectVideoIds,
                                      boolean allowDirectPlaylistIds,
                                      @Nullable String remoteCipherUrl,
-                                     @Nullable String remoteCipherPass,
+                                     @Nullable String remoteCipherPassword,
                                      @NotNull Client... clients) {
         this(
             new YoutubeSourceOptions()
                 .setAllowSearch(allowSearch)
                 .setAllowDirectVideoIds(allowDirectVideoIds)
                 .setAllowDirectPlaylistIds(allowDirectPlaylistIds)
-                .setRemoteCipherUrl(remoteCipherUrl)
-                .setRemoteCipherPass(remoteCipherPass),
+                .setRemoteCipherUrl(remoteCipherUrl, remoteCipherPassword),
             clients
         );
     }
@@ -166,8 +166,8 @@ public class YoutubeAudioSourceManager implements AudioSourceManager {
         this.allowDirectVideoIds = options.isAllowDirectVideoIds();
         this.allowDirectPlaylistIds = options.isAllowDirectPlaylistIds();
         this.clients = clients;
-        if (options.getRemoteCipherUrl() != null && !options.getRemoteCipherUrl().isEmpty()) {
-            this.cipherManager = new RemoteCipherManager(options.getRemoteCipherUrl(), options.getRemoteCipherPass());
+        if (!DataFormatTools.isNullOrEmpty(options.getRemoteCipherUrl())) {
+            this.cipherManager = new RemoteCipherManager(options.getRemoteCipherUrl(), options.getRemoteCipherPassword());
         } else {
             this.cipherManager = new LocalSignatureCipherManager();
         }
